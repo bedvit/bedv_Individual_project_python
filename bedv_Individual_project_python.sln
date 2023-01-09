@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32929.385
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "bedv_Individual_project_python", "bedv_Individual_project_python\bedv_Individual_project_python.pyproj", "{066584F5-37FC-4513-8B70-95A3BC228323}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{066584F5-37FC-4513-8B70-95A3BC228323}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{066584F5-37FC-4513-8B70-95A3BC228323}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B68EC0F3-3FA8-47B1-942D-E0128E056B76}
+	EndGlobalSection
+EndGlobal

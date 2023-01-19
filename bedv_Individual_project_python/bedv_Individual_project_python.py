@@ -78,8 +78,53 @@ def main():
 	cursor.close()
 	conn.close()
 
+
+
+def f1():
+	conn1 = psycopg2.connect(database = "edu",
+							host =     "de-edu-db.chronosavant.ru",
+							user =     "de11an",
+							password = "peregrintook",
+							port =     "5432")
+	conn2= psycopg2.connect(database = "edu",
+							host =     "de-edu-db.chronosavant.ru",
+							user =     "de11an",
+							password = "peregrintook",
+							port =     "5432")
+  
+	conn1.autocommit = False
+	conn2.autocommit = False
+	cursor1 = conn1.cursor()
+	cursor2 = conn2.cursor()
+
+	cursor1.execute( "SELECT * FROM de11an.bedv_source" )
+	#cursor2.executemany( """INSERT INTO de11an.bedv_source2 VALUES (%s,%s,%s)""", cursor1.fetchall()) #первый способ через список
+	for result in cursor1:
+		cursor2.execute( """INSERT INTO de11an.bedv_source2 VALUES (%s,%s,%s)""", result) #второй список построчно, экономия памяти, проверить на скорость
+	#conn2.commit()
+
+	cursor1.close()
+	cursor2.close()
+	conn1.close()
+	conn2.close()
+
+def f2():
+	# получим объект файла
+	file1 = open(r"...txt", "r")
+	while True:
+		# считываем строку
+		line = file1.readline()
+		# прерываем цикл, если строка пустая
+		if not line:
+			break
+		# выводим строку
+		print(line.strip())
+	# закрываем файл
+	file1.close
+
 if __name__ == '__main__':
-    main()
+    #main()
+	f2()
 
 
 

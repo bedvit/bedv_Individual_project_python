@@ -122,9 +122,28 @@ def f2():
 	# закрываем файл
 	file1.close
 
+
+def f3():
+	"""Поделючаем под пользователем COM.DLL из корневой папки"""
+	#регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL
+	import ctypes
+	bCOM = ctypes.WinDLL('BedvitCOM64.dll')
+	res=bCOM.DllInstall(1) #0-unregister, return==0 - OK
+	# использование BedvitCOM-DLL
+	from win32com import client
+	print(client.DispatchEx('BedvitCOM.VBA').Version())
+	bCOMvba = client.DispatchEx('BedvitCOM.VBA')
+	print(bCOMvba.FileName())
+
+	#bCOM = client.DispatchEx('BedvitCOM.BignumArithmeticInteger')
+	#bCOM.Factorial (0, 1024)
+	#bCOM = client.DispatchEx('BedvitCOM.VBA')
+
+
 if __name__ == '__main__':
     #main()
-	f2()
+	#print(f3.__doc__)
+	f3()
 
 
 

@@ -1,8 +1,111 @@
 ﻿#from pickle import FALSE
 import psycopg2
 import pandas as pd
+import os
+import shutil
+from datetime import datetime
 
 def main():	
+	#делаем коннект
+	conn_src = psycopg2.connect(database = "bank",
+							host =     "de-edu-db.chronosavant.ru",
+							user =     "bank_etl",
+							password = "bank_etl_password",
+							port =     "5432")
+	conn_dwh= psycopg2.connect(database = "edu",
+							host =     "de-edu-db.chronosavant.ru",
+							user =     "de11an",
+							password = "peregrintook",
+							port =     "5432")
+	conn_src.autocommit = False
+	conn_dwh.autocommit = False
+	cursor_src = conn_src.cursor()
+	cursor_dwh= conn_dwh.cursor()
+
+	#1. Очистка стейджинговых таблиц
+	#Очистим весь стейджинг 
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_transactions" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_passport_blacklist" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_terminals" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_cards" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_accounts" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_clients" )
+
+	#Очистим весь stg_del 
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_terminals" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_cards" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_accounts" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_clients" )
+
+
+	#загружаем фактические данные из файлов dwh_fact
+
+	# stg_terminals
+	# 1. Получаем дату из меты - последние изменения
+	# 2. Находим новый файл (фильтруем по дате из меты)
+	# 3. Открываем файл (должен быть 1 файл за новую дату) и загружаем в stg_terminals
+	# 4. Загружаем список id в stg_terminals_del
+	# 5. SCD2 загрузка из stg:
+	# 5.1. insert from stg_terminals to dim_terminals
+	#   добавление новых записей
+	# 5.2. (update, insert) from stg_terminals to dim_terminals
+	#   изменение старых (открытие новой версии, закрытие старой версии)
+	# 5.3. (update, insert) from stg_terminals_del -> dim_terminals
+	#   логическое удаление (открытие новой версии с deleted_flg = 1, закрытие старой версии)
+	# 6. Обновить meta
+
+	cursor_dwh.execute("""
+    select
+        max_update_dt
+    from de11an.bedv_meta
+    where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'""")
+
+	last_terminals_date = cursor_dwh.fetchone()[0]
+	print(last_terminals_date)
+
+
+
+
+
+
+	#2. Захват данных из источника (измененных с момента последней загрузки) в стейджинг
+
+	#3. Захват в стейджинг ключей из источника полным срезом для вычисления удалений.
+
+	#4. Загрузка в приемник "вставок" на источнике (формат SCD2).
+
+	#5. Обновление в приемнике "обновлений" на источнике (формат SCD2).
+
+	#6. Удаление в приемнике удаленных в источнике записей (формат SCD2).
+
+	#7. Обновление метаданных.
+
+	#8. Фиксация транзакции.
+
+	#* Напишите скрипт, соединяющий нужные таблицы для поиска операций, совершенных при недействующем договоре (это самый простой случай мошенничества). Отладьте ваш скрипт для одной даты в DBeaver, он должен выдавать результат. В простейшем варианте допустимо использовать «хардкод» для задания дня отчета.
+	#• Результат выполнения скрипта загружайте в таблицу xxxx_rep_fraud. Не забывайте сформировать поле report_dt.
+	#• Зафиксируйте изменения. Отключитесь от баз.
+	#• Переименуйте обработанные файлы и перенесите их в другой каталог.
+	#* Заполните файл main.cron
+
+	cursor_src.execute( "SELECT card_num, account, create_dt, update_dt FROM info.cards" )
+	for row in cursor_dwh:
+		cursor_dwh.execute( """INSERT INTO de11an.bedv_stg_cards(card_num,account_num,create_dt,update_dt) VALUES (%s,%s,%s,%s)""", row) #построчно
+	conn_dwh.commit()
+
+	cursor_src.close()
+	cursor_dwh.close()
+	conn_src.close()
+	conn_dwh.close()
+
+	#select max(coalesce(update_dt, create_dt)) from info.clients;
+	#select create_dt > max_update_dt or update_dt > max_update_dt from info.clients;
+	
+	#переносим файлы в архив
+	#os.rename(r'sourse/transactions_01032021.txt', r'archive/transactions_01032021.txt.backup') 
+
+
+def f0():	
 	conn = psycopg2.connect(database = "edu",
 							host =     "de-edu-db.chronosavant.ru",
 							user =     "de11an",
@@ -125,25 +228,29 @@ def f2():
 
 def f3():
 	"""Поделючаем под пользователем COM.DLL из корневой папки"""
-	#регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL
+	#регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
 	import ctypes
 	bCOM = ctypes.WinDLL('BedvitCOM64.dll')
-	res=bCOM.DllInstall(1) #0-unregister, return==0 - OK
+	bCOM.DllInstall(1) #0-unregister, return==0 - OK
 	# использование BedvitCOM-DLL
 	from win32com import client
 	print(client.DispatchEx('BedvitCOM.VBA').Version())
-	bCOMvba = client.DispatchEx('BedvitCOM.VBA')
-	print(bCOMvba.FileName())
+	print(client.DispatchEx('BedvitCOM.VBA').FileName())
+	bCOMi = client.DispatchEx('BedvitCOM.BignumArithmeticInteger')
+	bCOMi.Factorial (0, 100)
+	print(bCOMi.Bignum(0))
 
-	#bCOM = client.DispatchEx('BedvitCOM.BignumArithmeticInteger')
-	#bCOM.Factorial (0, 1024)
-	#bCOM = client.DispatchEx('BedvitCOM.VBA')
+
+
+
+
 
 
 if __name__ == '__main__':
     #main()
 	#print(f3.__doc__)
-	f3()
+	#f3()
+	main()
 
 
 

@@ -21,8 +21,8 @@ bedv_stg_del_clients
 bedv_meta
 bedv_rep_fraud
 */
-drop table de11an.bedv_stg_transactions;
-delete from de11an.bedv_stg_cards;
+drop table de11an.bedv_stg_terminals;
+delete from de11an.bedv_meta;
 select * from de11an.bedv_meta;
 --stg
 create table de11an.bedv_stg_transactions( 
@@ -42,7 +42,8 @@ create table de11an.bedv_stg_terminals(
 	terminal_id varchar,
 	terminal_type varchar,
 	terminal_city varchar,
-	terminal_address varchar
+	terminal_address varchar,
+	update_dt timestamp(0)
 );
 create table de11an.bedv_stg_cards( 
 	card_num varchar(20),
@@ -171,7 +172,7 @@ create table de11an.bedv_rep_fraud (
 );
 
 --заполняем мету разово минус-бесконечностью
-insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_dwh_dim_terminals_hist', to_date('1899-01-01', 'YYYY-MM-DD'));
+insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_dwh_dim_terminals_hist', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_dwh_dim_cards_hist', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_dwh_dim_accounts_hist', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_dwh_dim_clients_hist', to_date('1899-01-01', 'YYYY-MM-DD'));

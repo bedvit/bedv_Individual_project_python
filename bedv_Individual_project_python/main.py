@@ -3,7 +3,10 @@ import psycopg2
 import pandas as pd
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
+
+DIR_SOURCE = 'source/'
+DIR_ARCHIVE = 'archive/'
 
 def main():	
 	#делаем коннект
@@ -22,20 +25,20 @@ def main():
 	cursor_src = conn_src.cursor()
 	cursor_dwh= conn_dwh.cursor()
 
-	#1. Очистка стейджинговых таблиц
-	#Очистим весь стейджинг 
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_transactions" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_passport_blacklist" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_terminals" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_cards" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_accounts" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_clients" )
+	##1. Очистка стейджинговых таблиц
+	##Очистим весь стейджинг 
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_transactions" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_passport_blacklist" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_terminals" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_cards" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_accounts" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_clients" )
 
-	#Очистим весь stg_del 
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_terminals" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_cards" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_accounts" )
-	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_clients" )
+	##Очистим весь stg_del 
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_terminals" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_cards" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_accounts" )
+	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_clients" )
 
 
 	#загружаем фактические данные из файлов dwh_fact
@@ -54,14 +57,61 @@ def main():
 	#   логическое удаление (открытие новой версии с deleted_flg = 1, закрытие старой версии)
 	# 6. Обновить meta
 
-	cursor_dwh.execute("""
-    select
-        max_update_dt
-    from de11an.bedv_meta
-    where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'""")
+	cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'")
+	find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
+	terminals_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
 
-	last_terminals_date = cursor_dwh.fetchone()[0]
-	print(last_terminals_date)
+	#загрузка всех файлов из папки по очередности: +1 к дате в META
+	while os.path.isfile(terminals_file):
+		print(terminals_file)
+		df = pd.read_excel( f'{terminals_file}', sheet_name='terminals', header=0, index_col=None )
+		df['update_dt'] = find_date.strftime('%Y-%m-%d')
+		df = df[['terminal_id', 'terminal_type', 'terminal_city', 'terminal_address', 'update_dt']]
+		cursor_dwh.executemany( """ INSERT INTO de11an.bedv_stg_terminals(
+										terminal_id,
+										terminal_type,
+										terminal_city,
+										terminal_address,
+										update_dt 
+									) VALUES( %s, %s, %s, %s, %s ) """, df.values.tolist() )
+
+		cursor_dwh.executemany( "INSERT INTO de11an.bedv_stg_del_terminals(terminal_id) VALUES(%s)", df['terminal_id'].values.tolist())
+
+		### Загрузка dim
+		# dim_terminals
+		# SCD2 ->
+		#cursor_dwh.execute( """ insert into dwh.dim_terminals (
+		#						)""")
+		## ...
+
+		# update meta
+		cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
+									where schema_name='de11an' and source_name='bedv_dwh_dim_terminals_hist'""")
+		conn_dwh.commit()
+		#явно берем из META, вдруг не прогрузилось (сбой в сети и т.д.), ранее было #find_date+=timedelta(days=1) 
+		cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'")
+
+		#перемещаем файл
+		tmp=f'{DIR_ARCHIVE}{terminals_file}'+'.backup'
+		# переместить обработанные файлы
+		shutil.move(
+			f'{DIR_SOURCE}{terminals_file}',
+			f'{DIR_ARCHIVE}{terminals_file}'+'.backup'
+		)
+
+
+		find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
+		terminals_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
+
+	######################################################################################################
+
+  
+	cursor_src.close()
+	cursor_dwh.close()
+	conn_src.close()
+	conn_dwh.close()
+
+
 
 
 
@@ -88,22 +138,22 @@ def main():
 	#• Переименуйте обработанные файлы и перенесите их в другой каталог.
 	#* Заполните файл main.cron
 
-	cursor_src.execute( "SELECT card_num, account, create_dt, update_dt FROM info.cards" )
-	for row in cursor_dwh:
-		cursor_dwh.execute( """INSERT INTO de11an.bedv_stg_cards(card_num,account_num,create_dt,update_dt) VALUES (%s,%s,%s,%s)""", row) #построчно
-	conn_dwh.commit()
+	#cursor_src.execute( "SELECT card_num, account, create_dt, update_dt FROM info.cards" )
+	#for row in cursor_dwh:
+	#	cursor_dwh.execute( """INSERT INTO de11an.bedv_stg_cards(card_num,account_num,create_dt,update_dt) VALUES (%s,%s,%s,%s)""", row) #построчно
+	#conn_dwh.commit()
 
-	cursor_src.close()
-	cursor_dwh.close()
-	conn_src.close()
-	conn_dwh.close()
+	#cursor_src.close()
+	#cursor_dwh.close()
+	#conn_src.close()
+	#conn_dwh.close()
 
 	#select max(coalesce(update_dt, create_dt)) from info.clients;
 	#select create_dt > max_update_dt or update_dt > max_update_dt from info.clients;
 	
 	#переносим файлы в архив
 	#os.rename(r'sourse/transactions_01032021.txt', r'archive/transactions_01032021.txt.backup') 
-
+	#https://wiki.postgresql.org/wiki/Don%27t_Do_This#Don.27t_use_varchar.28n.29_by_default
 
 def f0():	
 	conn = psycopg2.connect(database = "edu",

@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>066584f5-37fc-4513-8b70-95a3bc228323</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>bedv_Individual_project_python.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

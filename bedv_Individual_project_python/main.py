@@ -5,8 +5,9 @@ import os
 import shutil
 from datetime import datetime, timedelta
 
-DIR_SOURCE = 'source/'
-DIR_ARCHIVE = 'archive/'
+
+DIR_SOURCE = os.path.join(os.path.dirname(__file__),'source','')
+DIR_ARCHIVE = os.path.join(os.path.dirname(__file__),'archive','')
 
 def main():	
 	#делаем коннект
@@ -27,15 +28,15 @@ def main():
 
 	##1. Очистка стейджинговых таблиц
 	##Очистим весь стейджинг 
-	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_transactions" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_transactions" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_passport_blacklist" )
-	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_terminals" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_terminals" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_cards" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_accounts" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_clients" )
 
 	##Очистим весь stg_del 
-	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_terminals" )
+	cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_terminals" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_cards" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_accounts" )
 	#cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_del_clients" )
@@ -57,15 +58,82 @@ def main():
 	#   логическое удаление (открытие новой версии с deleted_flg = 1, закрытие старой версии)
 	# 6. Обновить meta
 
+		# 1. Получаем дату из меты - последние изменения
+	cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_stg_transactions'")
+	find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
+	src_file =  DIR_SOURCE + 'transactions_'+ find_date.strftime("%d%m%Y")+'.txt'
+
+	# 2. Находим новый файлы (фильтруем по дате из меты)
+	while os.path.isfile(src_file):
+		print(src_file)
+		# 3. Открываем файл (должен быть 1 файл за новую дату) и загружаем в stg_terminals
+		df = pd.read_table( f'{src_file}',sep=';', header=0, index_col=None )
+		#df['update_dt'] = find_date.strftime('%Y-%m-%d')
+		df['parsed_date'] = df['transaction_date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S').date())
+		df = df[df['parsed_date'] == find_date.date()]
+
+		df['amt_fixed'] = df.amount.apply(lambda x: x.replace(',', '.'))
+		df = df[['transaction_id','transaction_date','card_num','oper_type','amt_fixed','oper_result','terminal']]
+		#df = df[['transaction_id','transaction_date','amount','card_num','oper_type','oper_result','terminal']]
+		cursor_dwh.executemany( """ INSERT INTO de11an.bedv_stg_transactions(
+										trans_id,
+										trans_date,
+										card_num,
+										oper_type,
+										amt,
+										oper_result,
+										terminal
+									) VALUES( %s, %s, %s, %s, %s, %s , %s) """, df.values.tolist() )
+
+		# 4. Загружаем список id в stg_terminals_del
+		#-- 4. Загрузка в приемник "вставок" на источнике (формат SCD2).
+
+		cursor_dwh.execute("""insert into de11an.bedv_dwh_fact_transactions( id, val, start_dt, end_dt, deleted_flg )
+							select 
+								stg.id, 
+								stg.val, 
+								stg.update_dt, 
+								to_date( '9999-12-31', 'YYYY-MM-DD' ),
+								'N'
+							from de11an.bedv_stg_transactions stg
+							left join de11an.bedv_dwh_fact_transactions tgt
+							on stg.id = tgt.id
+								and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+								and tgt.deleted_flg = 'N'
+							where tgt.id is null""")
+
+		# update meta
+		cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
+									where schema_name='de11an' and source_name='bedv_stg_transactions'""")
+		
+		
+
+
+		#перемещаем файл
+		tmp=f'{DIR_ARCHIVE}{src_file}'+'.backup'
+		# переместить обработанные файлы
+		shutil.move(f'{DIR_SOURCE}{src_file}', f'{DIR_ARCHIVE}{src_file}'+'.backup')
+		#сохраняем все изменения на сервере
+		conn_dwh.commit()
+		#формируем новую дату для файла - явно берем из META, вдруг не прогрузилось (сбой в сети и т.д.), ранее было #find_date+=timedelta(days=1) 
+		cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_stg_terminals'")
+		find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
+		src_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
+
+	######################################################################################################
+
+	# 1. Получаем дату из меты - последние изменения
 	cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'")
 	find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
-	terminals_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
+	src_file =  DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'
 
-	#загрузка всех файлов из папки по очередности: +1 к дате в META
-	while os.path.isfile(terminals_file):
-		print(terminals_file)
-		df = pd.read_excel( f'{terminals_file}', sheet_name='terminals', header=0, index_col=None )
+	# 2. Находим новый файлы (фильтруем по дате из меты)
+	while os.path.isfile(src_file):
+		print(src_file)
+		# 3. Открываем файл (должен быть 1 файл за новую дату) и загружаем в stg_terminals
+		df = pd.read_excel( f'{src_file}', sheet_name='terminals', header=0, index_col=None )
 		df['update_dt'] = find_date.strftime('%Y-%m-%d')
+		#df['amt_fixed'] = df.amount.apply(lambda x: x.replace(',', '.'))
 		df = df[['terminal_id', 'terminal_type', 'terminal_city', 'terminal_address', 'update_dt']]
 		cursor_dwh.executemany( """ INSERT INTO de11an.bedv_stg_terminals(
 										terminal_id,
@@ -75,33 +143,117 @@ def main():
 										update_dt 
 									) VALUES( %s, %s, %s, %s, %s ) """, df.values.tolist() )
 
-		cursor_dwh.executemany( "INSERT INTO de11an.bedv_stg_del_terminals(terminal_id) VALUES(%s)", df['terminal_id'].values.tolist())
+		# 4. Загружаем список id в stg_terminals_del
+		df = df[['terminal_id']]
+		cursor_dwh.executemany( "INSERT INTO de11an.bedv_stg_del_terminals(terminal_id) VALUES( %s) ", df.values.tolist() )
 
-		### Загрузка dim
-		# dim_terminals
-		# SCD2 ->
-		#cursor_dwh.execute( """ insert into dwh.dim_terminals (
-		#						)""")
-		## ...
+		#### Загрузка dim
+		## 5. SCD2 загрузка из stg:
+		#-- 4. Загрузка в приемник "вставок" на источнике (формат SCD2).
 
+		#insert into de11an.xxxx_target( id, val, start_dt, end_dt, deleted_flg )
+		#select 
+		#	stg.id, 
+		#	stg.val, 
+		#	stg.update_dt, 
+		#	to_date( '9999-12-31', 'YYYY-MM-DD' ),
+		#	'N'
+		#from de11an.xxxx_stg stg
+		#left join de11an.xxxx_target tgt
+		#on stg.id = tgt.id
+		#	and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#	and tgt.deleted_flg = 'N'
+		#where tgt.id is null;
+
+		#-- 5. Обновление в приемнике "обновлений" на источнике (формат SCD2).
+
+		#update de11an.xxxx_target
+		#set 
+		#	end_dt = tmp.update_dt - interval '1 second'
+		#from (
+		#	select 
+		#		stg.id, 
+		#		stg.update_dt
+		#	from de11an.xxxx_stg stg
+		#	inner join de11an.xxxx_target tgt
+		#	on stg.id = tgt.id
+		#		and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#		and tgt.deleted_flg = 'N'
+		#	where stg.val <> tgt.val or ( stg.val is null and tgt.val is not null ) or ( stg.val is not null and tgt.val is null )
+		#) tmp
+		#where xxxx_target.id = tmp.id; 
+
+		#insert into de11an.xxxx_target( id, val, start_dt, end_dt, deleted_flg )
+		#select 
+		#	stg.id,
+		#	stg.val,
+		#	stg.update_dt,
+		#	to_date( '9999-12-31', 'YYYY-MM-DD' ),
+		#	'N'
+		#from de11an.xxxx_stg stg
+		#inner join de11an.xxxx_target tgt
+		#on stg.id = tgt.id
+		#	and tgt.end_dt = stg.update_dt - interval '1 second'
+		#	and tgt.deleted_flg = 'N'
+		#where stg.val <> tgt.val or ( stg.val is null and tgt.val is not null ) or ( stg.val is not null and tgt.val is null )
+
+
+		#-- 6. Удаление в приемнике удаленных в источнике записей (формат SCD2).
+
+		#insert into de11an.xxxx_target( id, val, start_dt, end_dt, deleted_flg )
+		#select 
+		#	tgt.id,
+		#	tgt.val,
+		#	now(),
+		#	to_date( '9999-12-31', 'YYYY-MM-DD' ),
+		#	'Y'
+		#from de11an.xxxx_target tgt
+		#where tgt.id in (
+		#	select tgt.id
+		#	from de11an.xxxx_target tgt
+		#	left join de11an.xxxx_stg_del stg
+		#	on stg.id = tgt.id
+		#	where stg.id is null
+		#		and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#		and tgt.deleted_flg = 'N'
+		#)
+		#and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#and tgt.deleted_flg = 'N';
+
+		#update de11an.xxxx_target
+		#set 
+		#	end_dt = now() - interval '1 second'
+		#where xxxx_target.id in (
+		#	select tgt.id
+		#	from de11an.xxxx_target tgt
+		#	left join de11an.xxxx_stg_del stg
+		#	on stg.id = tgt.id
+		#	where stg.id is null
+		#		and tgt.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#		and tgt.deleted_flg = 'N'
+		#)
+		#and xxxx_target.end_dt = to_date( '9999-12-31', 'YYYY-MM-DD' )
+		#and xxxx_target.deleted_flg = 'N';
+
+
+		#-- 7. Обновление метаданных.
 		# update meta
 		cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
-									where schema_name='de11an' and source_name='bedv_dwh_dim_terminals_hist'""")
-		conn_dwh.commit()
-		#явно берем из META, вдруг не прогрузилось (сбой в сети и т.д.), ранее было #find_date+=timedelta(days=1) 
-		cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'")
+									where schema_name='de11an' and source_name='bedv_stg_terminals'""")
+		
+		
+
 
 		#перемещаем файл
-		tmp=f'{DIR_ARCHIVE}{terminals_file}'+'.backup'
+		tmp=f'{DIR_ARCHIVE}{src_file}'+'.backup'
 		# переместить обработанные файлы
-		shutil.move(
-			f'{DIR_SOURCE}{terminals_file}',
-			f'{DIR_ARCHIVE}{terminals_file}'+'.backup'
-		)
-
-
+		shutil.move(f'{DIR_SOURCE}{src_file}', f'{DIR_ARCHIVE}{src_file}'+'.backup')
+		#сохраняем все изменения на сервере
+		conn_dwh.commit()
+		#формируем новую дату для файла - явно берем из META, вдруг не прогрузилось (сбой в сети и т.д.), ранее было #find_date+=timedelta(days=1) 
+		cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_dwh_dim_terminals_hist'")
 		find_date=cursor_dwh.fetchone()[0]+timedelta(days=1)
-		terminals_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
+		src_file = DIR_SOURCE + 'terminals_'+ find_date.strftime("%d%m%Y")+'.xlsx'#while 'terminals_'DDMMYYYY.xlsx:
 
 	######################################################################################################
 

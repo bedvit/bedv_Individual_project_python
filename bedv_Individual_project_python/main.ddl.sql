@@ -21,10 +21,25 @@ bedv_stg_del_clients
 bedv_meta
 bedv_rep_fraud
 */
-drop table de11an.bedv_stg_terminals;
+drop table de11an.bedv_dwh_dim_clients_hist;
+
+delete from de11an.bedv_dwh_fact_transactions;
+delete from de11an.bedv_dwh_fact_passport_blacklist;
 delete from de11an.bedv_meta;
-select * from de11an.bedv_stg_terminals;
-select * from de11an.bedv_stg_del_terminals;
+--TRUNCATE table de11an.bedv_meta;
+select * from de11an.bedv_meta;
+select * from de11an.bedv_stg_transactions;
+select * from de11an.bedv_stg_transactions;
+select count(1) from de11an.bedv_dwh_fact_transactions;
+select count(1) from de11an.bedv_dwh_fact_passport_blacklist;
+SELECT * FROM pg_stat_activity WHERE state = 'active';
+SELECT pg_cancel_backend(3599346);
+SELECT pg_terminate_backend(3599346);
+
+select * from de11an.bedv_dwh_dim_terminals_hist;
+
+
+
 --stg
 create table de11an.bedv_stg_transactions( 
 	trans_id varchar,
@@ -93,14 +108,14 @@ create table de11an.bedv_dwh_dim_terminals_hist(
 	terminal_address varchar,
 	effective_from timestamp(0), 
 	effective_to timestamp(0), 
-	deleted_flg integer
+	deleted_flg char(1)
 );
 create table de11an.bedv_dwh_dim_cards_hist( 
 	card_num varchar(20),
 	account_num varchar(20),
 	effective_from timestamp(0), 
 	effective_to timestamp(0), 
-	deleted_flg integer
+	deleted_flg char(1)
 );
 create table de11an.bedv_dwh_dim_accounts_hist( 
 	account_num varchar(20),
@@ -108,7 +123,7 @@ create table de11an.bedv_dwh_dim_accounts_hist(
 	client varchar(10),
 	effective_from timestamp(0), 
 	effective_to timestamp(0), 
-	deleted_flg integer
+	deleted_flg char(1)
 );
 create table de11an.bedv_dwh_dim_clients_hist( 
 	client_id varchar(10),
@@ -121,7 +136,7 @@ create table de11an.bedv_dwh_dim_clients_hist(
 	phone varchar(16),
 	effective_from timestamp(0), 
 	effective_to timestamp(0), 
-	deleted_flg integer
+	deleted_flg char(1)
 );
 
 --stg_del
@@ -160,4 +175,5 @@ insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('d
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_cards', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_accounts', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_clients', to_date('1899-01-01', 'YYYY-MM-DD'));
+
 

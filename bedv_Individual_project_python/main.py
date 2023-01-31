@@ -26,25 +26,6 @@ def main():
 	cursor_src = conn_src.cursor()
 	cursor_dwh= conn_dwh.cursor()
 
-	##1. Очистка стейджинговых таблиц
-	#загружаем фактические данные из файлов dwh_fact
-
-	# stg_terminals
-	# 1. Получаем дату из меты - последние изменения
-	# 2. Находим новый файл (фильтруем по дате из меты)
-	# 3. Открываем файл (должен быть 1 файл за новую дату) и загружаем в stg_terminals
-	# 4. Загружаем список id в stg_terminals_del
-	# 5. SCD2 загрузка из stg:
-	# 5.1. insert from stg_terminals to dim_terminals
-	#   добавление новых записей
-	# 5.2. (update, insert) from stg_terminals to dim_terminals
-	#   изменение старых (открытие новой версии, закрытие старой версии)
-	# 5.3. (update, insert) from stg_terminals_del -> dim_terminals
-	#   логическое удаление (открытие новой версии с deleted_flg = 1, закрытие старой версии)
-	# 6. Обновить meta
-
-
-
 	# Обрабатываем источник transactions
 	#Получаем дату из меты - последние изменения
 	cursor_dwh.execute("select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_stg_transactions'")
@@ -91,7 +72,7 @@ def main():
 		cursor_dwh.execute( "DELETE FROM de11an.bedv_stg_passport_blacklist" )
 		#Открываем файл (должен быть 1 файл за новую дату) и загружаем в stg_
 		df = pd.read_excel( f'{src_file}', sheet_name='blacklist', header=0, index_col=None )
-		df['parsed_date'] = df['date'].apply(lambda x: x.to_pydatetime().date())#df['parsed_date'] = df['date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S').date())
+		df['parsed_date'] = df['date'].apply(lambda x: x.to_pydatetime().date())
 		#фильтруем по дате
 		df = df[df['parsed_date'] == find_date.date()]
 		df = df[['passport','date']]
@@ -157,6 +138,7 @@ def main():
 								and tgt.deleted_flg = 'N'
 							where tgt.terminal_id is null
 							""")
+
 		#Обновление в приемнике "обновлений" на источнике (формат SCD2).
 		cursor_dwh.execute(f"""
 							update de11an.bedv_dwh_dim_{table}_hist
@@ -196,6 +178,7 @@ def main():
 									or stg.terminal_city <> tgt.terminal_city or ( stg.terminal_city is null and tgt.terminal_city is not null ) or ( stg.terminal_city is not null and tgt.terminal_city is null )
 									or stg.terminal_address <> tgt.terminal_address or ( stg.terminal_address is null and tgt.terminal_address is not null ) or ( stg.terminal_address is not null and tgt.terminal_address is null )
 							""")
+
 		#Удаление в приемнике удаленных в источнике записей (формат SCD2).
 		cursor_dwh.execute(f"""
 							insert into de11an.bedv_dwh_dim_{table}_hist(terminal_id, terminal_type, terminal_city, terminal_address, effective_from, effective_to, deleted_flg)
@@ -236,9 +219,11 @@ def main():
 							and de11an.bedv_dwh_dim_{table}_hist.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
 							and de11an.bedv_dwh_dim_{table}_hist.deleted_flg = 'N'
 							""")
+
 		# update meta
 		cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
 									where schema_name='de11an' and table_name='bedv_stg_{table}'""")
+
 		# переместить обработанные файлы
 		shutil.move(src_file,arch_file)
 		#сохраняем все изменения на сервере
@@ -249,7 +234,146 @@ def main():
 		arch_file =  DIR_ARCHIVE + f'{table}_'+ find_date.strftime("%d%m%Y")+'.xlsx.backup'
 	######################################################################################################
 
-  
+	#Обрабатываем источник sql-сервер
+	# имя таблицы, ключ, другие поля необходимые для кодогенерации
+	tbl_src=(('cards','card_num','account'),
+			 ('accounts','account','valid_to','client'),
+			 ('clients','client_id','last_name','first_name','patronymic','date_of_birth','passport_num','passport_valid_to','phone')
+			)
+	tbl_dwh=(('cards','card_num','account_num'),
+			 ('accounts','account_num','valid_to','client'),
+			 ('clients','client_id','last_name','first_name','patronymic','date_of_birth','passport_num','passport_valid_to','phone')
+			)
+
+	for i in range(len(tbl_src)):
+		#формирование SQL-вставок
+		table=tbl_dwh[i][0]#таблицы одинаковые
+		id_src=tbl_src[i][1]
+		id_dwh=tbl_dwh[i][1]
+		select_src = ', '.join(tbl_src[i][1:])
+		select_dwh = ', '.join(tbl_dwh[i][1:])
+		select_stg_dwh ='stg.' + ', stg.'.join(tbl_dwh[i][1:])
+		select_tgt_dwh ='tgt.' + ', tgt.'.join(tbl_dwh[i][1:])
+		where_dwh = f'where 1=1'
+		for p in tbl_dwh[i][1:]:
+			where_dwh += f' or stg.{p} <> tgt.{p} or (stg.{p} is null and tgt.{p} is not null) or (stg.{p} is not null and tgt.{p} is null)'
+		#формирование SQL-вставок
+
+		#Очистка стейджинговых таблиц
+		cursor_dwh.execute( f"DELETE FROM de11an.bedv_stg_{table}" )
+		cursor_dwh.execute( f"DELETE FROM de11an.bedv_stg_del_{table}" )
+
+		#Захват данных из источника (измененных с момента последней загрузки) в стейджинг
+		cursor_dwh.execute(f"select max_update_dt from de11an.bedv_meta where schema_name='de11an' and table_name='bedv_stg_{table}'")
+		find_date=cursor_dwh.fetchone()[0]
+		cursor_src.execute( f"""
+							select {select_src},  max(coalesce(update_dt, create_dt)) as update_dt from info.{table}
+							where max(coalesce(update_dt, create_dt)) > to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
+							""")
+		cursor_dwh.executemany( f"""INSERT INTO de11an.bedv_stg_{table}({select_dwh}, update_dt) VALUES (%s)""", cursor_src.fetchall())
+
+		#Захват в стейджинг ключей из источника полным срезом для вычисления удалений.
+		cursor_src.execute( f"SELECT {id_src} FROM info.{table}" )
+		cursor_dwh.executemany( f"""INSERT INTO de11an.bedv_stg_del_{table}({id_dwh}) VALUES (%s)""", cursor_src.fetchall())
+
+		#Загрузка в приемник "вставок" на источнике (формат SCD2).
+		cursor_dwh.execute(	f"""
+							insert into de11an.bedv_dwh_dim_{table}_hist({select_dwh}, effective_from, effective_to, deleted_flg)
+							select 
+								{select_stg_dwh}, 
+								stg.update_dt,
+								to_date( '9999-12-31', 'YYYY-MM-DD' ),
+								'N'
+							from de11an.bedv_stg_{table} stg
+							left join de11an.bedv_dwh_dim_{table}_hist tgt
+								on stg.{id_dwh} = tgt.{id_dwh}
+								and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+								and tgt.deleted_flg = 'N'
+							where tgt.{id_dwh} is null
+							""")
+
+		#Обновление в приемнике "обновлений" на источнике (формат SCD2).
+		cursor_dwh.execute(f"""
+							update de11an.bedv_dwh_dim_{table}_hist
+							set 
+								effective_to = tmp.update_dt - interval '1 second'
+							from (
+								select 
+									stg.{id_dwh}, 
+									stg.update_dt
+								from de11an.bedv_stg_{table} stg
+								inner join de11an.bedv_dwh_dim_{table}_hist tgt
+									on stg.{id_dwh} = tgt.{id_dwh}
+									and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+									and tgt.deleted_flg = 'N'
+									{where_dwh}
+								) tmp
+							where de11an.bedv_dwh_dim_{table}_hist.{id_dwh} = tmp.{id_dwh}
+							""")
+		cursor_dwh.execute(f"""
+							insert into de11an.bedv_dwh_dim_{table}_hist({select_dwh}, effective_from, effective_to, deleted_flg)
+							select 
+								{select_stg_dwh}, 
+								stg.update_dt,
+								to_date( '9999-12-31', 'YYYY-MM-DD' ),
+								'N'
+							from de11an.bedv_stg_{table} stg
+							inner join de11an.bedv_dwh_dim_{table}_hist tgt
+							on stg.{id_dwh} = tgt.{id_dwh}
+								and tgt.effective_to = stg.update_dt - interval '1 second'
+								and tgt.deleted_flg = 'N'
+								{where_dwh}
+							""")
+
+		#Удаление в приемнике удаленных в источнике записей (формат SCD2).
+		cursor_dwh.execute(f"""
+							insert into de11an.bedv_dwh_dim_{table}_hist({select_dwh}, effective_from, effective_to, deleted_flg)
+							select 
+								{select_tgt_dwh}, 
+								now(),
+								to_date( '9999-12-31', 'YYYY-MM-DD' ),
+								'Y'
+							from de11an.bedv_dwh_dim_{table}_hist tgt
+							where tgt.{id_dwh} in (
+								select tgt.{id_dwh}
+								from de11an.bedv_dwh_dim_{table}_hist tgt
+								left join de11an.bedv_stg_del_{table} stg
+								on stg.{id_dwh} = tgt.{id_dwh}
+								where stg.{id_dwh} is null
+									and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+									and tgt.deleted_flg = 'N'
+							)
+							and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+							and tgt.deleted_flg = 'N'
+							""")
+		cursor_dwh.execute(f"""
+							update de11an.bedv_dwh_dim_{table}_hist
+							set 
+								effective_to = now() - interval '1 second'
+							where de11an.bedv_dwh_dim_{table}_hist.{id_dwh} in (
+								select tgt.{id_dwh}
+								from de11an.bedv_dwh_dim_{table}_hist tgt
+								left join de11an.bedv_stg_del_{table} stg
+								on stg.{id_dwh} = tgt.{id_dwh}
+								where stg.{id_dwh} is null
+									and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+									and tgt.deleted_flg = 'N'
+							)
+							and de11an.bedv_dwh_dim_{table}_hist.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+							and de11an.bedv_dwh_dim_{table}_hist.deleted_flg = 'N'
+							""")
+
+		# update meta
+		cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{find_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
+									where schema_name='de11an' and table_name='bedv_stg_{table}'""")
+
+		#сохраняем все изменения на сервере
+		conn_dwh.commit()
+	######################################################################################################
+
+
+
+
 	cursor_src.close()
 	cursor_dwh.close()
 	conn_src.close()
@@ -281,22 +405,6 @@ def main():
 	#• Зафиксируйте изменения. Отключитесь от баз.
 	#• Переименуйте обработанные файлы и перенесите их в другой каталог.
 	#* Заполните файл main.cron
-
-	#cursor_src.execute( "SELECT card_num, account, create_dt, update_dt FROM info.cards" )
-	#for row in cursor_dwh:
-	#	cursor_dwh.execute( """INSERT INTO de11an.bedv_stg_cards(card_num,account_num,create_dt,update_dt) VALUES (%s,%s,%s,%s)""", row) #построчно
-	#conn_dwh.commit()
-
-	#cursor_src.close()
-	#cursor_dwh.close()
-	#conn_src.close()
-	#conn_dwh.close()
-
-	#select max(coalesce(update_dt, create_dt)) from info.clients;
-	#select create_dt > max_update_dt or update_dt > max_update_dt from info.clients;
-	
-	#переносим файлы в архив
-	#os.rename(r'sourse/transactions_01032021.txt', r'archive/transactions_01032021.txt.backup') 
 	#https://wiki.postgresql.org/wiki/Don%27t_Do_This#Don.27t_use_varchar.28n.29_by_default
 
 def f0():	

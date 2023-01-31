@@ -21,7 +21,7 @@ bedv_stg_del_clients
 bedv_meta
 bedv_rep_fraud
 */
-drop table de11an.bedv_dwh_dim_clients_hist;
+
 
 delete from de11an.bedv_dwh_fact_transactions;
 delete from de11an.bedv_dwh_fact_passport_blacklist;
@@ -39,7 +39,7 @@ SELECT pg_terminate_backend(3599346);
 select * from de11an.bedv_dwh_dim_terminals_hist;
 
 
-
+drop table de11an.bedv_stg_clients;
 --stg
 create table de11an.bedv_stg_transactions( 
 	trans_id varchar,
@@ -64,14 +64,12 @@ create table de11an.bedv_stg_terminals(
 create table de11an.bedv_stg_cards( 
 	card_num varchar(20),
 	account_num varchar(20),
-	create_dt timestamp(0),
 	update_dt timestamp(0)
 );
 create table de11an.bedv_stg_accounts( 
 	account_num varchar(20),
 	valid_to date,
 	client varchar(10),
-	create_dt timestamp(0),
 	update_dt timestamp(0)
 );
 create table de11an.bedv_stg_clients( 
@@ -83,7 +81,6 @@ create table de11an.bedv_stg_clients(
 	passport_num varchar(15),
 	passport_valid_to date,
 	phone varchar(16),
-	create_dt timestamp(0),
 	update_dt timestamp(0)
 );
 
@@ -168,7 +165,7 @@ create table de11an.bedv_rep_fraud (
 	report_dt date
 );
 
---заполняем мету разово начальными датами-
+--заполняем мету разово начальными датами
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_transactions', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_passport_blacklist', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_terminals', to_date('2021-02-28', 'YYYY-MM-DD'));

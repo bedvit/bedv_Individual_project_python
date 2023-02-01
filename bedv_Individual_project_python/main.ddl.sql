@@ -23,7 +23,29 @@ bedv_rep_fraud
 */
 
 
-delete from de11an.bedv_dwh_fact_transactions;
+
+
+							update de11an.bedv_dwh_dim_cards_hist
+								set effective_to = tmp.update_dt - interval '1 second'
+							from (
+								select 
+								stg.card_num, 
+								stg.update_dt
+								from de11an.bedv_stg_cards stg
+								inner join de11an.bedv_dwh_dim_cards_hist tgt
+									on stg.card_num = tgt.card_num
+									and tgt.effective_to = to_date( '9999-12-31', 'YYYY-MM-DD' )
+										and tgt.deleted_flg = 'N'
+								where 1=0 
+									or stg.card_num <> tgt.card_num or (stg.card_num is null and tgt.card_num is not null) or (stg.card_num is not null and tgt.card_num is null) 
+									or stg.account_num <> tgt.account_num or (stg.account_num is null and tgt.account_num is not null) or (stg.account_num is not null and tgt.account_num is null)
+									) tmp
+							where de11an.bedv_dwh_dim_cards_hist.card_num = tmp.card_num
+								and de11an.bedv_dwh_dim_cards_hist.deleted_flg = 'N' 
+							;
+
+
+delete from de11an.bedv_dwh_dim_cards_hist;
 delete from de11an.bedv_dwh_fact_passport_blacklist;
 delete from de11an.bedv_meta;
 --TRUNCATE table de11an.bedv_meta;
@@ -38,8 +60,51 @@ SELECT pg_terminate_backend(3599346);
 
 select * from de11an.bedv_dwh_dim_terminals_hist;
 
+select * from bedv_dwh_fact_passport_blacklist;
+select * from de11an.bedv_dwh_dim_cards_hist;
+select * from de11an.bedv_dwh_dim_accounts_hist;
+select * from de11an.bedv_dwh_dim_clients_hist;
+select * from de11an.bedv_meta;
 
-drop table de11an.bedv_stg_clients;
+
+/*
+Признаки мошеннических операций.
+1. Совершение операции при просроченном или заблокированном паспорте.
+2. Совершение операции при недействующем договоре.
+3. Совершение операций в разных городах в течение одного часа.
+4. Попытка подбора суммы. В течение 20 минут проходит более 3х операций со следующим шаблоном – каждая последующая меньше предыдущей, 
+при этом отклонены все кроме последней. Последняя операция (успешная) в такой цепочке считается мошеннической.
+
+event_dt Время наступления события. Если событие наступило по результату нескольких действий – указывается время действия, по которому установлен факт мошенничества.
+passport Номер паспорта клиента, совершившего мошенническую	операцию.
+fio	ФИО клиента, совершившего мошенническую операцию.
+phone	Номер телефона клиента, совершившего мошенническую	операцию.
+event_type	Описание типа мошенничества (номер).
+report_dt	Дата, на которую построен отчет.
+*/
+
+--удаляем лишние пробелы
+--update de11an.bedv_dwh_dim_cards_hist set card_num = trim(card_num);
+
+select * from de11an.bedv_rep_fraud;
+--insert into de11an.bedv_rep_fraud( event_dt, passport, fio, phone, event_type, report_dt)
+select 
+	tr.trans_date, 
+	cli.passport_num, 
+	(cli.last_name || ' ' || cli.first_name), 
+	cli.phone,
+	2,
+	now()
+from de11an.bedv_dwh_fact_transactions tr
+inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
+inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
+inner join de11an.bedv_dwh_dim_clients_hist cli on cli.client_id = acc.client
+where tr.card_num ='4513 5880 2369 1799';
+
+select * 
+from de11an.bedv_dwh_dim_cards_hist crd
+--where crd.card_num ='4513 5880 2369 1799';
+
 --stg
 create table de11an.bedv_stg_transactions( 
 	trans_id varchar,

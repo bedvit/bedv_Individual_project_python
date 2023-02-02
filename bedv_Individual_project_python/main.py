@@ -100,9 +100,6 @@ def scd2(cursor_dwh, table, id_dwh, select_dwh, select_stg_dwh, select_tgt_dwh, 
 						""")
 
 	# update meta
-	cursor_dwh.execute(f"""update de11an.bedv_meta set max_update_dt = to_date('{last_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
-								where schema_name='de11an' and table_name='bedv_stg_{table}'""")
-
 	cursor_dwh.execute(f"""update de11an.bedv_meta
 							set max_update_dt = coalesce(
 								( select max( update_dt ) from de11an.bedv_stg_{table}  ),
@@ -272,7 +269,9 @@ def main():
 							select {select_src},  coalesce(update_dt, create_dt) as update_dt from info.{table}
 							where coalesce(update_dt, create_dt) > to_date('{last_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD') 
 							""")
-		cursor_dwh.executemany( f"""INSERT INTO de11an.bedv_stg_{table}({select_dwh}, update_dt) VALUES ({'%s'+',%s'*(len(tbl_dwh[i])-1)})""", cursor_src.fetchall())
+		for row in cursor_src:
+			cursor_dwh.execute( f"""INSERT INTO de11an.bedv_stg_{table}({select_dwh}, update_dt) VALUES ({'%s'+',%s'*(len(tbl_dwh[i])-1)})""", row) #заливаем данные построчно, экономия памяти, не упадет при больших таблицах
+		#cursor_dwh.executemany( f"""INSERT INTO de11an.bedv_stg_{table}({select_dwh}, update_dt) VALUES ({'%s'+',%s'*(len(tbl_dwh[i])-1)})""", cursor_src.fetchall()) #заливаем массивом, при больших таблицах может не хватить памяти
 		cursor_dwh.execute( f"""update de11an.bedv_stg_{table} set {id_dwh} = trim({id_dwh})""")
 		#Захват в стейджинг ключей из источника полным срезом для вычисления удалений.
 		cursor_src.execute( f"SELECT trim({id_src}) FROM info.{table}" )

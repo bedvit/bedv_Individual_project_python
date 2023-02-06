@@ -4,7 +4,6 @@ import os
 import shutil
 from datetime import datetime, timedelta
 
-
 DIR_SOURCE = os.path.join(os.path.dirname(__file__),'source','')
 DIR_ARCHIVE = os.path.join(os.path.dirname(__file__),'archive','')
 
@@ -285,30 +284,67 @@ def main():
 	######################################################################################################
 
 
-
 	#Формируем отчет по мошенническим операциям
-
-
-	######################################################################################################
-
+	#1. Совершение операции при просроченном или заблокированном паспорте.
+	cursor_dwh.execute( f"""
+						insert into de11an.bedv_rep_fraud( event_dt, passport, fio, phone, event_type, report_dt)
+						select distinct
+							tr.trans_date as event_dt, 
+							cli.passport_num as passport, 
+							(cli.last_name || ' ' || cli.first_name || ' ' || cli.patronymic) as fio, 
+							cli.phone as phone,
+							1 as event_type,
+							tr.trans_date::date as report_dt
+						from de11an.bedv_dwh_fact_transactions tr
+						inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
+						inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
+						inner join de11an.bedv_dwh_dim_clients_hist cli on cli.client_id = acc.client
+						left join de11an.bedv_dwh_fact_passport_blacklist pbl on pbl.passport_num = cli.passport_num
+						where (tr.trans_date::date > coalesce(cli.passport_valid_to, now())	or tr.trans_date>pbl.entry_dt)
+							and now()::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=1), now()::date-1)
+						""")
+	#2. Совершение операции при недействующем договоре.
+	cursor_dwh.execute( f"""
+						insert into de11an.bedv_rep_fraud( event_dt, passport, fio, phone, event_type, report_dt)
+						select distinct
+							tr.trans_date as event_dt, 
+							cli.passport_num as passport, 
+							(cli.last_name || ' ' || cli.first_name || ' ' || cli.patronymic) as fio, 
+							cli.phone as phone,
+							2 as event_type,
+							tr.trans_date::date as report_dt
+						from de11an.bedv_dwh_fact_transactions tr
+						inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
+						inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
+						inner join de11an.bedv_dwh_dim_clients_hist cli on cli.client_id = acc.client
+						where tr.trans_date::date > acc.valid_to 
+							and now()::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=2), now()::date-1)
+						""")
+		######################################################################################################
 
 	cursor_src.close()
 	cursor_dwh.close()
 	conn_src.close()
 	conn_dwh.close()
-	#2. Захват данных из источника (измененных с момента последней загрузки) в стейджинг
-	#3. Захват в стейджинг ключей из источника полным срезом для вычисления удалений.
-	#4. Загрузка в приемник "вставок" на источнике (формат SCD2).
-	#5. Обновление в приемнике "обновлений" на источнике (формат SCD2).
-	#6. Удаление в приемнике удаленных в источнике записей (формат SCD2).
-	#7. Обновление метаданных.
-	#8. Фиксация транзакции.
-	#* Напишите скрипт, соединяющий нужные таблицы для поиска операций, совершенных при недействующем договоре (это самый простой случай мошенничества). Отладьте ваш скрипт для одной даты в DBeaver, он должен выдавать результат. В простейшем варианте допустимо использовать «хардкод» для задания дня отчета.
-	#• Результат выполнения скрипта загружайте в таблицу xxxx_rep_fraud. Не забывайте сформировать поле report_dt.
-	#• Зафиксируйте изменения. Отключитесь от баз.
-	#• Переименуйте обработанные файлы и перенесите их в другой каталог.
-	#* Заполните файл main.cron
-	#https://wiki.postgresql.org/wiki/Don%27t_Do_This#Don.27t_use_varchar.28n.29_by_default
+
+
+if __name__ == '__main__':
+	main()
+
+
+#2. Захват данных из источника (измененных с момента последней загрузки) в стейджинг
+#3. Захват в стейджинг ключей из источника полным срезом для вычисления удалений.
+#4. Загрузка в приемник "вставок" на источнике (формат SCD2).
+#5. Обновление в приемнике "обновлений" на источнике (формат SCD2).
+#6. Удаление в приемнике удаленных в источнике записей (формат SCD2).
+#7. Обновление метаданных.
+#8. Фиксация транзакции.
+#* Напишите скрипт, соединяющий нужные таблицы для поиска операций, совершенных при недействующем договоре (это самый простой случай мошенничества). Отладьте ваш скрипт для одной даты в DBeaver, он должен выдавать результат. В простейшем варианте допустимо использовать «хардкод» для задания дня отчета.
+#• Результат выполнения скрипта загружайте в таблицу xxxx_rep_fraud. Не забывайте сформировать поле report_dt.
+#• Зафиксируйте изменения. Отключитесь от баз.
+#• Переименуйте обработанные файлы и перенесите их в другой каталог.
+#* Заполните файл main.cron
+#https://wiki.postgresql.org/wiki/Don%27t_Do_This#Don.27t_use_varchar.28n.29_by_default
 
 def f0():	
 	conn = psycopg2.connect(database = "edu",
@@ -447,15 +483,6 @@ def f3():
 
 
 
-
-
-
-
-if __name__ == '__main__':
-    #main()
-	#print(f3.__doc__)
-	#f3()
-	main()
 
 
 def main0():	

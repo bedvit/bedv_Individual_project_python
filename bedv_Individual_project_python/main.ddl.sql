@@ -114,7 +114,7 @@ select distinct
 	(cli.last_name || ' ' || cli.first_name || ' ' || cli.patronymic) as fio, 
 	cli.phone as phone,
 	1 as event_type,
-	now()::date as report_dt
+	tr.trans_date::date as report_dt
 from de11an.bedv_dwh_fact_transactions tr
 inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
 inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
@@ -131,7 +131,7 @@ select distinct
 	(cli.last_name || ' ' || cli.first_name || ' ' || cli.patronymic) as fio, 
 	cli.phone as phone,
 	2 as event_type,
-	now()::date as report_dt
+	tr.trans_date::date as report_dt
 from de11an.bedv_dwh_fact_transactions tr
 inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
 inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
@@ -161,7 +161,11 @@ inner join de11an.bedv_dwh_dim_terminals_hist trm on trm.terminal_id = tr.termin
 --4. Попытка подбора суммы. В течение 20 минут проходит более 3х операций со следующим шаблоном – каждая последующая меньше предыдущей, 
 --при этом отклонены все кроме последней. Последняя операция (успешная) в такой цепочке считается мошеннической.
 
+
+
+
 /*
+Папки на сервере созданы вручную
 В модели настраиваются пути к source и archive (по умолчанию - в той же папке, что и скрипт .py)
 Модель настроена на SCD2
 Модель корректно обрабатывает ВСЕ файлы, которые есть в папке sourse и складывает их в archive

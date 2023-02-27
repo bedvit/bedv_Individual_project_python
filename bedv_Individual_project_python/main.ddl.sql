@@ -63,7 +63,14 @@ update de11an.bedv_meta	set max_update_dt = to_date('1899-01-01', 'YYYY-MM-DD') 
 */
 
 --TRUNCATE table de11an.bedv_meta;
-select * from de11an.bedv_meta;
+delete from de11an.bedv_dwh_fact_transactions;
+delete from bedv_dwh_fact_passport_blacklist;
+delete from de11an.bedv_dwh_dim_terminals_hist;
+delete from de11an.bedv_dwh_dim_cards_hist;
+delete from de11an.bedv_dwh_dim_accounts_hist;
+delete from de11an.bedv_dwh_dim_clients_hist;
+delete from de11an.bedv_meta;
+delete from de11an.bedv_rep_fraud;
 
 select * from de11an.bedv_dwh_fact_transactions;
 select count(1) from de11an.bedv_dwh_fact_transactions;
@@ -79,6 +86,7 @@ select * from de11an.bedv_dwh_dim_cards_hist;
 select * from de11an.bedv_dwh_dim_accounts_hist;
 select * from de11an.bedv_dwh_dim_clients_hist;
 select * from de11an.bedv_meta;
+select * from de11an.bedv_rep_fraud;
 
 
 /*
@@ -99,7 +107,6 @@ report_dt	Дата, на которую построен отчет.
 
 --удаляем лишние пробелы
 --update de11an.bedv_dwh_dim_cards_hist set card_num = trim(card_num);
-delete from de11an.bedv_rep_fraud;
 
 select * from de11an.bedv_rep_fraud;
 
@@ -121,7 +128,7 @@ inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.accoun
 inner join de11an.bedv_dwh_dim_clients_hist cli on cli.client_id = acc.client
 left join de11an.bedv_dwh_fact_passport_blacklist pbl on pbl.passport_num = cli.passport_num
 where (tr.trans_date::date > coalesce(cli.passport_valid_to, now())	or tr.trans_date>pbl.entry_dt)
-	and now()::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=1), now()::date-1)
+	and tr.trans_date::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=1), tr.trans_date::date-1)
 ;
 --2. Совершение операции при недействующем договоре.
 insert into de11an.bedv_rep_fraud( event_dt, passport, fio, phone, event_type, report_dt)
@@ -137,7 +144,7 @@ inner join de11an.bedv_dwh_dim_cards_hist crd on crd.card_num = tr.card_num
 inner join de11an.bedv_dwh_dim_accounts_hist acc on acc.account_num = crd.account_num
 inner join de11an.bedv_dwh_dim_clients_hist cli on cli.client_id = acc.client
 where tr.trans_date::date > acc.valid_to 
-	and now()::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=2), now()::date-1)
+	and tr.trans_date::date> coalesce((select max(report_dt) from de11an.bedv_rep_fraud where event_type=2), tr.trans_date::date-1)
 ; 
 --3. Совершение операций в разных городах в течение одного часа (по одной и той же card_num)
 --insert into de11an.bedv_rep_fraud( event_dt, passport, fio, phone, event_type, report_dt)
@@ -304,12 +311,29 @@ create table de11an.bedv_rep_fraud (
 );
 
 --заполняем мету разово начальными датами
+delete from de11an.bedv_dwh_fact_transactions;
+delete from bedv_dwh_fact_passport_blacklist;
+delete from de11an.bedv_dwh_dim_terminals_hist;
+delete from de11an.bedv_dwh_dim_cards_hist;
+delete from de11an.bedv_dwh_dim_accounts_hist;
+delete from de11an.bedv_dwh_dim_clients_hist;
+delete from de11an.bedv_meta;
+delete from de11an.bedv_rep_fraud;
+delete from de11an.bedv_meta;
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_transactions', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_passport_blacklist', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_terminals', to_date('2021-02-28', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_cards', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_accounts', to_date('1899-01-01', 'YYYY-MM-DD'));
 insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_stg_clients', to_date('1899-01-01', 'YYYY-MM-DD'));
-insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_rep_fraud', to_date('1899-01-01', 'YYYY-MM-DD'));
+--insert into de11an.bedv_meta (schema_name, table_name, max_update_dt) values ('de11an', 'bedv_rep_fraud', to_date('1899-01-01', 'YYYY-MM-DD'));
 
 
+select * from de11an.bedv_dwh_fact_transactions;
+select * from bedv_dwh_fact_passport_blacklist;
+select * from de11an.bedv_dwh_dim_terminals_hist;
+select * from de11an.bedv_dwh_dim_cards_hist;
+select * from de11an.bedv_dwh_dim_accounts_hist;
+select * from de11an.bedv_dwh_dim_clients_hist;
+select * from de11an.bedv_meta;
+select * from de11an.bedv_rep_fraud;

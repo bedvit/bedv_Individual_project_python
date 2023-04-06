@@ -111,14 +111,14 @@ def scd2(cursor_dwh, table, id_dwh, select_dwh, select_stg_dwh, select_tgt_dwh, 
 def main():	
 	#делаем коннект
 	conn_src = psycopg2.connect(database = "bank",
-							host =     "de-edu-db.chronosavant.ru",
-							user =     "bank_etl",
-							password = "bank_etl_password",
+							host =     "host",
+							user =     "user",
+							password = "password",
 							port =     "5432")
 	conn_dwh= psycopg2.connect(database = "edu",
-							host =     "de-edu-db.chronosavant.ru",
-							user =     "de11an",
-							password = "peregrintook",
+							host =     "host",
+							user =     "user",
+							password = "password",
 							port =     "5432")
 	conn_src.autocommit = False
 	conn_dwh.autocommit = False
@@ -344,8 +344,67 @@ def bedvitCOM():
 	bCOMi.Factorial (0, 100)
 	print(f'Factorial 100: '+bCOMi.Bignum(0))
 
+def graf():
+	"""вывод графика"""
+	#вывод графика
+	import numpy as np
+	import pandas as pd
+	import matplotlib.pyplot as plt
+	plt.close("all")
+	ts = pd.Series(np.random.randn(1000), index=pd.date_range("1/1/2000", periods=1000))
+	ts = ts.cumsum()
+	#ts.plot()
+	#plt.show()
+	df = pd.DataFrame(np.random.randn(1000, 4), index=ts.index, columns=["A", "B", "C", "D"])
+	df = df.cumsum()
+	#plt.figure()
+	df.plot()
+	plt.legend(loc='best')
+	plt.show()
+
+def form():
+	"""вывод формы"""
+	# вывод формы
+	from PyQt5 import QtWidgets
+	import sys
+	app = QtWidgets.QApplication(sys.argv)
+	window = QtWidgets.QWidget()
+	window.setWindowTitle("Hello World!")
+	window.resize(300,700)
+	label = QtWidgets.QLabel("<center>Hello World!</*center>")
+	btnQuit = QtWidgets.QPushButton("&Закрыть окно")
+	vbox = QtWidgets.QVBoxLayout()
+	vbox.addWidget(label)
+	vbox.addWidget(btnQuit)
+	window.setLayout(vbox)
+	btnQuit.clicked.connect(app.quit)
+	window.show()
+	sys.exit(app.exec_())
+
+
+# использование С-DLL
+# import ctypes
+# User32 = ctypes.WinDLL('User32.dll')
+# x=User32.GetSystemMetrics(1)
+# print(x)
+# # bCOM = CreateObject("BedvitCOM.BignumArithmeticFloat")
+# # bCOM.Help
+
+# import comtypes.client
+# bCOM = comtypes.client.CreateObject('BedvitCOM.BignumArithmeticFloat')
+# bCOM.Help
+
+# испоьзование СОМ-DLL
+# from win32com import client
+# app = client.DispatchEx("Excel.Application")
+# app.Interactive = True
+# app.Visible = True
+# input_file = r'Test.xlsb'
+# Workbook = app.Workbooks.Open(input_file)
 
 
 if __name__ == '__main__':
-	bedvitCOM()
 	#main()
+	#bedvitCOM()
+	graf()
+	#form()

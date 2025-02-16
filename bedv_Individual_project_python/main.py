@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import shutil
 from datetime import datetime, timedelta
+# from win32com import client
 
 DIR_SOURCE = os.path.join(os.path.dirname(__file__),'source','')# f'/home/de11an/bedv/project/source/'#
 DIR_ARCHIVE = os.path.join(os.path.dirname(__file__),'archive','')#f'/home/de11an/bedv/project/archive/'#
@@ -403,8 +404,48 @@ def form():
 # Workbook = app.Workbooks.Open(input_file)
 
 
+
+# import os, os.path
+
+
+def ExcelApplicationRun():
+	# from win32com import client
+	# # if os.path.exists("excelsheet.xlsm"):
+	# xl=client.Dispatch("Excel.Application")
+	from win32com import client
+	app = client.DispatchEx("Excel.Application")
+	# app.Interactive = True
+	app.Visible = True
+
+	input_xll = r'C:\Users\vit\AppData\Roaming\Microsoft\AddIns\BedvitXLL64.xll' 
+	input_file = r'C:\Users\vit\Documents\Visual Studio 2022\BedvitDLL\Tests\Test.xlsb'
+
+	app.RegisterXLL(input_xll) #xl.RegisterXLL('C:/path/addin.xll')
+	# Workbook = app.Workbooks.Add
+
+	Workbook = app.Workbooks.Open(input_file)
+
+	# for xla, xlam add-in
+	# # # Need to load the addins before opening the workbook
+	# # addin_path = r'C:\path\addin.xla'
+	# # xl.Workbooks.Open(addin_path)
+	# # xl.AddIns.Add(addin_path).Installed = True
+
+	# Workbook.visible = True
+	# import pythoncom
+	# pythoncom.PumpWaitingMessages()
+	# import time
+	# time.sleep(1)
+	app.Application.Run("XLLcmdSetSheetFormat","1")
+	# app.Application.Run("m_VBARun.test") #app.Application.Run("XLLcmdSetSheetFormat","1")
+	#xl.Application.Save() # if you want to save then uncomment this line and change delete the ", ReadOnly=1" part from the open function.
+	app.Application.Quit() # Comment this out if your excel script closes
+	del app
+
+
 if __name__ == '__main__':
 	#main()
 	#bedvitCOM()
-	graf()
+	# graf()
 	#form()
+	ExcelApplicationRun()

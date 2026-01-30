@@ -1,0 +1,11 @@
+2024-08-06 09:35:25,013 [main.py:676 -                 main() ] === start
+2024-08-06 09:35:25,014 [main.py:677 -                 main() ] mssql+pymssql://test_MyDB:test_MyDB@MOW03-SQL64/test_MyDB?charset=utf8
+2024-08-06 09:36:54,141 [main.py:592 - export_data_by_date_range() ] -get data
+2024-08-06 09:36:54,541 [main.py:607 - export_data_by_date_range() ] +get data
+2024-08-06 09:36:54,542 [main.py:609 - export_data_by_date_range() ] -export
+2024-08-06 09:37:54,099 [main.py:641 - export_data_by_date_range() ] +export
+2024-08-06 09:40:29,015 [main.py:592 - export_data_by_date_range() ] -get data
+2024-08-06 09:43:39,142 [main.py:607 - export_data_by_date_range() ] +get data
+2024-08-06 09:43:39,142 [main.py:609 - export_data_by_date_range() ] -export
+2024-08-06 09:43:45,462 [main.py:641 - export_data_by_date_range() ] +export
+2024-08-06 09:43:49,794 [main.py:711 -                 main() ] === stop

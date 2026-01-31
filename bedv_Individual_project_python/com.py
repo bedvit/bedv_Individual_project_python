@@ -70,8 +70,11 @@ def bedvitCOM_File():
 	from win32com import client
 
 	varFromFile=['', 5, [4, 5, 6]]
-	bCOMi = client.DispatchEx('BedvitCOM.VBA')
+	# bCOMi = client.DispatchEx('BedvitCOM.VBA')
 	# bCOMi = client.DispatchEx('BedvitCOM.Сollection')
+	bCOMi = client.DispatchEx('BedvitCOM.Functions')
+	# bCOMi = client.DispatchEx('BedvitCOM.Methods')
+
 	res = bCOMi.VariantToFile (varFromFile)
 	res = bCOMi.VariantFromFile (varFromFile)
 	print(res[1][0])

@@ -73,6 +73,8 @@ def bedvitCOM_File():
 	# bCOMi = client.DispatchEx('BedvitCOM.VBA')
 	# bCOMi = client.DispatchEx('BedvitCOM.Сollection')
 	bCOMi = client.DispatchEx('BedvitCOM.Functions')
+	print(client.DispatchEx('BedvitCOM.VBA').FileName())
+
 	# bCOMi = client.DispatchEx('BedvitCOM.Methods')
 
 	res = bCOMi.VariantToFile (varFromFile)
@@ -80,10 +82,30 @@ def bedvitCOM_File():
 	print(res[1][0])
 
 
+def bedvitCOM_DataGridView():
+	"""Поделючаем под пользователем COM.DLL из корневой папки"""
+	# #регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
+	# import ctypes
+	# bCOM = ctypes.WinDLL('BedvitCOM64.dll')
+	# bCOM.DllInstall(1) #0-unregister, return==0 - OK
+	# # использование BedvitCOM-DLL
+
+	from win32com import client
+	print(client.DispatchEx('BedvitCOM.VBA').FileName())
+	bCOMi = client.DispatchEx('BedvitCOM.Functions')
+
+	matrixIn = [[ ('header' if row == 0 else 'value') + str(col + row) for col in range(1, 30)] for row in range(100000)]
+
+	matrixOut = bCOMi.DataGridView (matrixIn)
+	print(matrixOut[1][0])
+
+
+
+
 if __name__ == '__main__':
 	#num1=round(3.5)
 	#num2=round(4.5)
 	#print(num1,num2)
 	#main()
-	bedvitCOM_File()
 	# print('Hello')
+	bedvitCOM_DataGridView()

@@ -83,12 +83,12 @@ def bedvitCOM_File():
 
 
 def bedvitCOM_DataGridView():
-	"""Поделючаем под пользователем COM.DLL из корневой папки"""
-	# #регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
-	# import ctypes
-	# bCOM = ctypes.WinDLL('BedvitCOM64.dll')
-	# bCOM.DllInstall(1) #0-unregister, return==0 - OK
-	# # использование BedvitCOM-DLL
+	"""Подключаем под пользователем COM.DLL из корневой папки"""
+	#регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
+	import ctypes
+	bCOM = ctypes.WinDLL('BedvitCOM64.dll')
+	bCOM.DllInstall(1) #0-unregister, return==0 - OK
+	# использование BedvitCOM-DLL
 
 	from win32com import client
 	print(client.DispatchEx('BedvitCOM.VBA').FileName())

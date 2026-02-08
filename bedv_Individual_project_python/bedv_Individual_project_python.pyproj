@@ -11,7 +11,9 @@
     <OutputPath>.</OutputPath>
     <Name>bedv_Individual_project_python</Name>
     <RootNamespace>bedv_Individual_project_python</RootNamespace>
-    <InterpreterId>CondaEnv|CondaEnv|SupplyChainProject</InterpreterId>
+    <InterpreterId>
+    </InterpreterId>
+    <TestFramework>Pytest</TestFramework>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -29,6 +31,7 @@
   <ItemGroup>
     <InterpreterReference Include="CondaEnv|CondaEnv|server" />
     <InterpreterReference Include="CondaEnv|CondaEnv|SupplyChainProject" />
+    <InterpreterReference Include="Global|PythonCore|3.9" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

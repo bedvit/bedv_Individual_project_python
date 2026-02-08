@@ -83,23 +83,34 @@ def bedvitCOM_File():
 
 
 def bedvitCOM_DataGridView():
-	"""Подключаем под пользователем COM.DLL из корневой папки"""
-	#регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
-	import ctypes
-	bCOM = ctypes.WinDLL('BedvitCOM64.dll')
-	bCOM.DllInstall(1) #0-unregister, return==0 - OK
-	# использование BedvitCOM-DLL
+	# """Подключаем под пользователем COM.DLL из корневой папки"""
+	# #регистрируем под пользователем: DllInstall(1) BedvitCOM-DLL - разово
+	# import ctypes
+	# bCOM = ctypes.WinDLL(r'C:\Users\vit\source\repos\bedv_Individual_project_python\bedv_Individual_project_python\BedvitCOM64.dll')
+	# # Удалим старые версии
+	# bCOM.DllInstall(0) #0-unregister, return==0 - OK
+	# # Зарегистрируем текущую версию
+	# bCOM.DllInstall(1) #0-unregister, return==0 - OK
+	# # использование BedvitCOM-DLL
 
 	from win32com import client
 	print(client.DispatchEx('BedvitCOM.VBA').FileName())
-	bCOMi = client.DispatchEx('BedvitCOM.Functions')
-
-	matrixIn = [[ ('header' if row == 0 else 'value') + str(col + row) for col in range(1, 30)] for row in range(100000)]
-
-	matrixOut = bCOMi.DataGridView (matrixIn)
+	print(client.DispatchEx('BedvitCOM.VBA').Version())
+	bCOMi = client.DispatchEx('BedvitCOM.VBA')
+	matrixIn = [[ ('header' if row == 0 else 'value') + str(col + row) for col in range(1, 30)] for row in range(1000)]
+	
+	matrixOut = bCOMi.DataGridView(1)
 	print(matrixOut[1][0])
 
+	listViewSave = ['ListView', ["HeaderData", matrixOut]]
+	createGuid = bCOMi.CoCreateGuid(1);
 
+	resultVtoF = bCOMi.VariantToFile (listViewSave)
+	resultVfromF = bCOMi.VariantFromFile (listViewSave)
+
+	print(resultVfromF[1][0])
+
+	
 
 
 if __name__ == '__main__':
